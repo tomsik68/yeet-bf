@@ -1,0 +1,6 @@
+[package]
+name = "yeet-bf"
+version = "0.1.0"
+authors = ["Tomas Jasek <tomsik68@gmail.com>"]
+
+[dependencies]
