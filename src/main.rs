@@ -14,7 +14,5 @@ fn main() {
     let filename = &args[1];
     let prog = parser::parse_program(filename).expect("Failed parsing the program");
 
-    println!("{:?}", prog);
-
     interp::interpret(&prog);
 }
