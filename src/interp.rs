@@ -3,12 +3,12 @@ use std::vec::Vec;
 
 pub fn interpret(prog: &Vec<BfInst>) {
     use bf::BfInst::*;
-    let mut memory = Vec::<u8>::with_capacity(65536);
+    let mut memory = vec![0u8; 65536];
 
     let mut pc: usize = 0;
     let mut ptr: usize = 0;
 
-    loop {
+    while pc < prog.len() {
         let mut jumped = false;
 
         match prog[pc] {
@@ -34,19 +34,52 @@ pub fn interpret(prog: &Vec<BfInst>) {
             }
 
             Write => {
-                print!("{}", memory[ptr]);
+                print!("{}", memory[ptr] as char);
             }
 
             LoopStart => {
                 if memory[ptr] == 0 {
-                    // TODO: go to next loop end
+                    let mut in_loop = 1;
+                    loop {
+                        pc = pc + 1;
+                        match prog[pc] {
+                            LoopStart => {
+                                in_loop += 1;
+                            }
+                            LoopEnd => {
+                                in_loop -= 1;
+                                if in_loop == 0 {
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    assert!(pc < prog.len());
                     jumped = true;
                 }
             }
 
             LoopEnd => {
                 if memory[ptr] != 0 {
-                    // TODO: go to previous loop start
+                    let mut in_loop = 1;
+                    loop {
+                        pc = pc - 1;
+                        match prog[pc] {
+                            LoopEnd => {
+                                in_loop += 1;
+                            }
+                            LoopStart => {
+                                in_loop -= 1;
+                                if in_loop == 0 {
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    assert!(pc < prog.len());
                     jumped = true;
                 }
             }
