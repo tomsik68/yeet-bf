@@ -1,9 +1,10 @@
 use bf::BfInst;
+use input::InputSupplier;
 use std::vec::Vec;
 
-pub fn interpret(prog: &Vec<BfInst>) {
+pub fn interpret(prog: &Vec<BfInst>, mut input: Box<InputSupplier>) {
     use bf::BfInst::*;
-    let mut memory = vec![0u8; 65536];
+    let mut memory = vec![0u32; 65536];
 
     let mut pc: usize = 0;
     let mut ptr: usize = 0;
@@ -29,12 +30,11 @@ pub fn interpret(prog: &Vec<BfInst>) {
             }
 
             Read => {
-                // TODO
-                memory[ptr] = 0;
+                memory[ptr] = input.read_char().expect("Failed reading input") as u32;
             }
 
             Write => {
-                print!("{}", memory[ptr] as char);
+                print!("{}", (memory[ptr] as u8) as char);
             }
 
             LoopStart => {

@@ -1,6 +1,7 @@
 use std::env;
 
 mod bf;
+mod input;
 mod interp;
 mod parser;
 
@@ -14,5 +15,6 @@ fn main() {
     let filename = &args[1];
     let prog = parser::parse_program(filename).expect("Failed parsing the program");
 
-    interp::interpret(&prog);
+    let input = input::stdin();
+    interp::interpret(&prog, input);
 }
