@@ -3,6 +3,7 @@ use bf::BfInst::{self, *};
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::module::Module;
+use inkwell::types::BasicType;
 use inkwell::values::BasicValue;
 use inkwell::AddressSpace;
 
@@ -13,6 +14,15 @@ pub fn compile_brainf(prog: Vec<BfInst>) -> Option<Module> {
     let module = ctx.create_module("brainfuck");
     let builder = ctx.create_builder();
     let fn_type = ctx.void_type();
+    let putchar = module.add_function(
+        "putchar",
+        ctx.void_type()
+            .fn_type(&[ctx.i8_type().as_basic_type_enum()], false),
+        None,
+    );
+
+    let getchar = module.add_function("getchar", ctx.i8_type().fn_type(&[], false), None);
+
     let function = module.add_function("main", fn_type.fn_type(&[], false), None);
 
     let block = function.append_basic_block("entry");
@@ -63,9 +73,27 @@ pub fn compile_brainf(prog: Vec<BfInst>) -> Option<Module> {
                 let new_ptr = builder.build_gep(ptr_val, &[minus_one], "");
                 builder.build_store(ptr.clone(), new_ptr);
             },
-            // TODO: solve read & write with syscalls
-            Read => {}
-            Write => {}
+            Read => {
+                let ptr_val = builder.build_load(ptr, "").as_pointer_value().clone();
+                let new_char = builder.build_call(getchar.clone(), &[], "");
+                let val = builder.build_int_z_extend(
+                    new_char
+                        .try_as_basic_value()
+                        .left()
+                        .expect("getchar must return non-void")
+                        .as_int_value()
+                        .clone(),
+                    ctx.i64_type(),
+                    "",
+                );
+                builder.build_store(ptr_val, val);
+            }
+            Write => {
+                let ptr_val = builder.build_load(ptr, "").as_pointer_value().clone();
+                let val = builder.build_load(ptr_val, "");
+                let c = builder.build_int_truncate(val.as_int_value().clone(), ctx.i8_type(), "");
+                builder.build_call(putchar.clone(), &[c.as_basic_value_enum()], "");
+            }
         }
     }
 
