@@ -6,10 +6,15 @@ use inkwell::module::Module;
 use inkwell::types::BasicType;
 use inkwell::values::BasicValue;
 use inkwell::AddressSpace;
+use inkwell::IntPredicate;
+use llvm_compiler::jump_table::compute_jump_table;
+use std::collections::HashMap;
 
 type BrainfProgramFunc = unsafe extern "C" fn();
 
 pub fn compile_brainf(prog: Vec<BfInst>) -> Option<Module> {
+    let jump_table = compute_jump_table(&prog);
+
     let ctx = Context::get_global();
     let module = ctx.create_module("brainfuck");
     let builder = ctx.create_builder();
@@ -43,13 +48,51 @@ pub fn compile_brainf(prog: Vec<BfInst>) -> Option<Module> {
         builder.build_store(ptr, mem_begin);
     }
 
-    for inst in &prog {
+    let mut end_blocks = HashMap::new();
+
+    for (ref inst, pc) in prog.iter().zip(0..) {
         match inst {
             LoopStart => {
-                // TODO
+                let loop_start = function.append_basic_block("");
+                // add jump from previous block
+                builder.build_unconditional_branch(&loop_start);
+                // compare instructions should be placed into this block
+                builder.position_at_end(&loop_start);
+
+                // compare the val with zero
+                let ptr_val = builder.build_load(ptr, "").as_pointer_value().clone();
+                let val = builder.build_load(ptr_val, "").as_int_value().clone();
+                let result = builder.build_int_compare(IntPredicate::NE, val, zero, "");
+
+                let loop_body = function.append_basic_block("");
+
+                let loop_end = function.append_basic_block("");
+
+                builder.build_conditional_branch(result, &loop_body, &loop_end);
+
+                builder.position_at_end(&loop_body);
+
+                end_blocks.insert(pc, (loop_body, loop_end));
             }
+
             LoopEnd => {
-                // TODO
+                let start_addr = jump_table.get(&pc).unwrap();
+                let (loop_body, loop_end) = end_blocks
+                    .get(start_addr)
+                    .expect("compile_brainf: no end block found");
+
+                // builder is at loop body right now
+                builder.build_unconditional_branch(&loop_end);
+                builder.position_at_end(&loop_end);
+
+                // compare the val with zero
+                let ptr_val = builder.build_load(ptr, "").as_pointer_value().clone();
+                let val = builder.build_load(ptr_val, "").as_int_value().clone();
+                let result = builder.build_int_compare(IntPredicate::EQ, val, zero, "");
+
+                let continuation = function.append_basic_block("");
+                builder.build_conditional_branch(result, &continuation, &loop_body);
+                builder.position_at_end(&continuation);
             }
             Inc => {
                 let ptr_val = builder.build_load(ptr, "").as_pointer_value().clone();
